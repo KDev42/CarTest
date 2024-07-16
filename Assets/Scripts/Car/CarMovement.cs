@@ -1,27 +1,22 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
-using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 public class CarMovement : MonoBehaviour
 {
     [SerializeField] CarData carData;
     [SerializeField] CarEffects carEffects;
 
-    [SerializeField] GameObject frontLeftMesh;
-    [SerializeField] WheelCollider frontLeftCollider;
-    [Space(10)]
-    [SerializeField] GameObject frontRightMesh;
-    [SerializeField] WheelCollider frontRightCollider;
-    [Space(10)]
-    [SerializeField] GameObject rearLeftMesh;
-    [SerializeField] WheelCollider rearLeftCollider;
-    [Space(10)]
-    [SerializeField] GameObject rearRightMesh;
-    [SerializeField] WheelCollider rearRightCollider; 
-    [Space(10)]
-    [SerializeField] Vector3 bodyMassCenter = new Vector3(0,1.5f,0);
+    [SerializeField] Wheel frontLeftWheel;
+    [SerializeField] Wheel frontRightWheel;
+    [SerializeField] Wheel backLeftWheel;
+    [SerializeField] Wheel backRightWheel;
+
+    [SerializeField] Vector3 bodyMassCenter = new Vector3(0,0,0);
+
+    private const float turnSpeed =10;
 
     public Vector3 LocalVelocity { get; private set; }
     public float CarSpeed { get; private set; }
@@ -60,23 +55,42 @@ public class CarMovement : MonoBehaviour
     private float rrWextremumSlip;
     private float frWextremumSlip;
     private float rlWextremumSlip;
+    private Vector2 moveDirection;
     private WheelFrictionCurve flWheelFriction;
     private WheelFrictionCurve frWheelFriction;
     private WheelFrictionCurve rlWheelFriction;
     private WheelFrictionCurve rrWheelFriction;
 
-    void Start()
+    private GameObject frontLeftMesh;
+    private WheelCollider frontLeftCollider;
+    private GameObject frontRightMesh;
+    private WheelCollider frontRightCollider;
+    private GameObject rearLeftMesh;
+    private WheelCollider rearLeftCollider;
+    private GameObject rearRightMesh;
+    private WheelCollider rearRightCollider;
+
+
+    private void Start()
     {
         carRigidbody = gameObject.GetComponent<Rigidbody>();
         carRigidbody.centerOfMass = bodyMassCenter;
 
-        InitWheele(frontLeftCollider, flWheelFriction, ref flWextremumSlip);
-        InitWheele(frontRightCollider, frWheelFriction, ref frWextremumSlip);
-        InitWheele(rearLeftCollider, rlWheelFriction, ref rlWextremumSlip);
-        InitWheele(rearRightCollider, rrWheelFriction, ref rrWextremumSlip);
-    }
+        //frontLeftCollider = frontLeftWheel.WheelCollider;
+        //frontRightCollider = frontRightWheel.WheelCollider;
+        //rearLeftCollider = backLeftWheel.WheelCollider;
+        //rearRightCollider = backRightWheel.WheelCollider;
 
-    private Vector2 moveDirection;
+        //frontLeftMesh = frontLeftWheel.WheelMesh;
+        //frontRightMesh = frontRightWheel.WheelMesh;
+        //rearLeftMesh = backLeftWheel.WheelMesh;
+        //rearRightMesh = backRightWheel.WheelMesh;
+
+        InitWheele(frontLeftWheel, out frontLeftCollider, out frontLeftMesh, out flWheelFriction, ref flWextremumSlip);
+        InitWheele(frontRightWheel, out frontRightCollider, out frontRightMesh, out frWheelFriction, ref frWextremumSlip);
+        InitWheele(backLeftWheel, out rearLeftCollider, out rearLeftMesh, out rlWheelFriction, ref rlWextremumSlip);
+        InitWheele(backRightWheel, out rearRightCollider, out rearRightMesh, out rrWheelFriction, ref rrWextremumSlip);
+    }
 
     private void Update()
     {
@@ -128,24 +142,29 @@ public class CarMovement : MonoBehaviour
         this.moveDirection = moveDirection;
     }
 
-    private void InitWheele(WheelCollider wheelCollider, WheelFrictionCurve wheelFriction, ref float wextremumSlip)
+    private void InitWheele(Wheel wheel, out WheelCollider wheelCollider, out GameObject wheelMesh,out WheelFrictionCurve wheelFriction, ref float wextremumSlip)
     {
-        wheelFriction = new WheelFrictionCurve();
-        wheelFriction.extremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
+        wheel.InitWheel();
+        wheelCollider = wheel.WheelCollider;
+        wheelMesh = wheel.WheelMesh;
+
+        wheelFriction = wheelCollider.sidewaysFriction;
         wextremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
-        wheelFriction.extremumValue = wheelCollider.sidewaysFriction.extremumValue;
-        wheelFriction.asymptoteSlip = wheelCollider.sidewaysFriction.asymptoteSlip;
-        wheelFriction.asymptoteValue = wheelCollider.sidewaysFriction.asymptoteValue;
-        wheelFriction.stiffness = wheelCollider.sidewaysFriction.stiffness;
+
+        //wheelFriction = new WheelFrictionCurve();
+        //wheelFriction.extremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
+        //wextremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
+        //wheelFriction.extremumValue = wheelCollider.sidewaysFriction.extremumValue;
+        //wheelFriction.asymptoteSlip = wheelCollider.sidewaysFriction.asymptoteSlip;
+        //wheelFriction.asymptoteValue = wheelCollider.sidewaysFriction.asymptoteValue;
+        //wheelFriction.stiffness = wheelCollider.sidewaysFriction.stiffness;
     }
 
     private void Turn(float horizantaleInput)
     {
         float sign = Math.Sign(horizantaleInput);
 
-        SteeringAxis = SteeringAxis + sign * (Time.deltaTime * 10f * carData.SteeringSpeed);
-
-        Debug.Log("SteeringAxis " + SteeringAxis);
+        SteeringAxis += sign * (Time.deltaTime * turnSpeed * carData.SteeringSpeed);
 
         float steeringAngle = SteeringAxis * carData.MaxSteeringAngle;
         frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, steeringAngle, carData.SteeringSpeed);
@@ -154,14 +173,10 @@ public class CarMovement : MonoBehaviour
 
     private void ResetSteeringAngle()
     {
-        if (SteeringAxis < 0f)
-        {
-            SteeringAxis = SteeringAxis + (Time.deltaTime * 10f * carData.SteeringSpeed);
-        }
-        else if (SteeringAxis > 0f)
-        {
-            SteeringAxis = SteeringAxis - (Time.deltaTime * 10f * carData.SteeringSpeed);
-        }
+        float sign = Math.Sign(SteeringAxis);
+
+        SteeringAxis -= sign * (Time.deltaTime * turnSpeed * carData.SteeringSpeed);
+
         if (Mathf.Abs(frontLeftCollider.steerAngle) < 1f)
         {
             SteeringAxis = 0f;
@@ -188,14 +203,6 @@ public class CarMovement : MonoBehaviour
         float limitedSpeed = sign > 0 ? carData.MaxSpeed : carData.MaxReverseSpeed;
 
         ThrottleAxis = ThrottleAxis + sign*(Time.deltaTime * 3f);
-        if (ThrottleAxis > 1f)
-        {
-            ThrottleAxis = 1f;
-        }
-        if (ThrottleAxis < -1f)
-        {
-            ThrottleAxis = -1f;
-        }
 
         if ((sign > 0 && LocalVelocity.z < -1f) || (sign < 0 && LocalVelocity.z > 1f))
         {

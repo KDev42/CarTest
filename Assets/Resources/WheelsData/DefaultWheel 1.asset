@@ -9,15 +9,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1d0c42e70e77d594ab5ab30a50036eb8, type: 3}
-  m_Name: DefaultCarData
+  m_Script: {fileID: 11500000, guid: 8a45cb8533761bb44b4e4b66b816c2c9, type: 3}
+  m_Name: DefaultWheel 1
   m_EditorClassIdentifier: 
-  mass: 950
-  maxSpeed: 185
-  maxReverseSpeed: 45
-  acceleration: 7
-  maxSteeringAngle: 35
-  steeringSpeed: 1
-  brakeForce: 450
-  decelerationMultiplier: 1
-  handbrakeDriftMultiplier: 5
+  sidewaysFriction:
+    ExtremumSlip: 1
+    ExtremumValue: 4
+    AsymptoteSlip: 2
+    AsymptoteValue: 2
+    Stiffness: 1
