@@ -72,21 +72,21 @@ public class PrometeoCarController : MonoBehaviour
       [Space(20)]
       //[Header("EFFECTS")]
       [Space(10)]
-      //The following variable lets you to set up particle systems in your car
-      public bool useEffects = false;
+    //The following variable lets you to set up particle systems in your car
+    public bool useEffects = false;
 
-      // The following particle systems are used as tire smoke when the car drifts.
-      public ParticleSystem RLWParticleSystem;
-      public ParticleSystem RRWParticleSystem;
+    // The following particle systems are used as tire smoke when the car drifts.
+    public ParticleSystem RLWParticleSystem;
+    public ParticleSystem RRWParticleSystem;
 
-      [Space(10)]
-      // The following trail renderers are used as tire skids when the car loses traction.
-      public TrailRenderer RLWTireSkid;
-      public TrailRenderer RRWTireSkid;
+    [Space(10)]
+    // The following trail renderers are used as tire skids when the car loses traction.
+    public TrailRenderer RLWTireSkid;
+    public TrailRenderer RRWTireSkid;
 
     //SPEED TEXT (UI)
 
-      [Space(20)]
+    [Space(20)]
       //[Header("UI")]
       [Space(10)]
       //The following variable lets you to set up a UI text to display the speed of your car.

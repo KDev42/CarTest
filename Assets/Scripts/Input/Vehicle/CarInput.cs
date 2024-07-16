@@ -5,10 +5,12 @@ using UnityEngine;
 public abstract class CarInput : VehicleInput
 {
     private GameObject vehicle;
+    private CarMovement carMovement;
 
     public override void Init(GameObject vehicle)
     {
         this.vehicle = vehicle;
+        vehicle.TryGetComponent(out carMovement);
     }
 
     public override void EnableInput()
@@ -27,10 +29,7 @@ public abstract class CarInput : VehicleInput
     }
     private void Update()
     {
-        //if ((movementSchemeComponents & MovementSchemeComponents.Movement) != 0)
-        //{
-        //    characterMove.SetMoveDirection(isSprint, GetMovementDirection());
-        //}
+        carMovement.SetMoveDirection(GetMovementDirection());
     }
 
     protected abstract Vector2 GetMovementDirection();

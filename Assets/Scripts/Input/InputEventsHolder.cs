@@ -9,14 +9,8 @@ public sealed class InputEventsHolder
 
     public static InputEventsHolder Instance { get { return lazyInstance.Value; } }
 
-    public Action EnableInput;
-    public Action DisableInput;
-
-    public Action EnableCharacterInput;
-    public Action DisableCharacterInput;
-    public Action<bool> SetActiveCharacterLookAround { get; set; }
-    public Action<bool> SetActiveCharacterMove;
+    public Action EnableInput { get; set; }
+    public Action DisableInput { get; set; }
 
     public Action<GameObject> EnableVehicleInput { get; set; }
-    public Action<GameObject> EnableStaticVehicleInput { get; set; }
 }

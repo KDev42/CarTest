@@ -6,7 +6,8 @@ using static UnityEngine.UIElements.UxmlAttributeDescription;
 
 public class CarMovement : MonoBehaviour
 {
-    [SerializeField] CarMovementData carMovementData;
+    [SerializeField] CarData carData;
+    [SerializeField] CarEffects carEffects;
 
     [SerializeField] GameObject frontLeftMesh;
     [SerializeField] WheelCollider frontLeftCollider;
@@ -20,16 +21,40 @@ public class CarMovement : MonoBehaviour
     [SerializeField] GameObject rearRightMesh;
     [SerializeField] WheelCollider rearRightCollider; 
     [Space(10)]
-    [SerializeField] Vector3 bodyMassCenter = new Vector3(0,1.5f,0); 
+    [SerializeField] Vector3 bodyMassCenter = new Vector3(0,1.5f,0);
 
-    private Rigidbody carRigidbody; // Stores the car's rigidbody.
-    float steeringAxis; // Used to know whether the steering wheel has reached the maximum value. It goes from -1 to 1.
-    float throttleAxis; // Used to know whether the throttle has reached the maximum value. It goes from -1 to 1.
-    float driftingAxis;
-    float localVelocityZ;
-    float localVelocityX;
-    bool deceleratingCar;
-    bool touchControlsSetup = false;
+    public Vector3 LocalVelocity { get; private set; }
+    public float CarSpeed { get; private set; }
+    public bool IsDrifting { get; private set; }
+    public bool IsTractionLocked { get; private set; }
+
+    private float SteeringAxis {
+        get => steeringAxis;
+        set {
+            if (value > 1) steeringAxis = 1;
+            else if (value < -1) steeringAxis = -1;
+            else
+                steeringAxis = value;
+        }
+    }
+    private float ThrottleAxis
+    {
+        get => throttleAxis;
+        set
+        {
+            if (value > 1) throttleAxis = 1;
+            else if (value < -1) throttleAxis = -1;
+            else
+                throttleAxis = value;
+        }
+    }
+
+    private float steeringAxis;
+    private float throttleAxis;
+    private float driftingAxis;
+    private bool deceleratingCar;
+
+    private Rigidbody carRigidbody;
 
     private float flWextremumSlip;
     private float rrWextremumSlip;
@@ -40,9 +65,6 @@ public class CarMovement : MonoBehaviour
     private WheelFrictionCurve rlWheelFriction;
     private WheelFrictionCurve rrWheelFriction;
 
-    [HideInInspector]
-    public float carSpeed; // Used to store the speed of the car.
-
     void Start()
     {
         carRigidbody = gameObject.GetComponent<Rigidbody>();
@@ -52,6 +74,58 @@ public class CarMovement : MonoBehaviour
         InitWheele(frontRightCollider, frWheelFriction, ref frWextremumSlip);
         InitWheele(rearLeftCollider, rlWheelFriction, ref rlWextremumSlip);
         InitWheele(rearRightCollider, rrWheelFriction, ref rrWextremumSlip);
+    }
+
+    private Vector2 moveDirection;
+
+    private void Update()
+    {
+        CarSpeed = (2 * Mathf.PI * frontLeftCollider.radius * frontLeftCollider.rpm * 60) / 1000;
+
+        LocalVelocity = new Vector3(transform.InverseTransformDirection(carRigidbody.velocity).x, LocalVelocity.y, transform.InverseTransformDirection(carRigidbody.velocity).z); 
+
+        if (moveDirection.y !=0)
+        {
+            CancelInvoke("DecelerateCar");
+            deceleratingCar = false;
+            Move(moveDirection.y);
+        }
+
+        if (moveDirection.x != 0)
+        {
+            Turn(moveDirection.x);
+        }
+
+        if (Input.GetKey(KeyCode.Space))
+        {
+            CancelInvoke("DecelerateCar");
+            deceleratingCar = false;
+            Handbrake();
+        }
+        if (Input.GetKeyUp(KeyCode.Space))
+        {
+            RecoverTraction();
+        }
+        if (moveDirection.y == 0)
+        {
+            ThrottleOff();
+        }
+        if (moveDirection.y == 0  && !deceleratingCar)// && !Input.GetKey(KeyCode.Space))
+        {
+            InvokeRepeating("DecelerateCar", 0f, 0.1f);
+            deceleratingCar = true;
+        }
+        if (moveDirection.x == 0 && SteeringAxis != 0f)
+        {
+            ResetSteeringAngle();
+        }
+
+        AnimateWheelMeshes();
+    }
+
+    public void SetMoveDirection(Vector2 moveDirection)
+    {
+        this.moveDirection = moveDirection;
     }
 
     private void InitWheele(WheelCollider wheelCollider, WheelFrictionCurve wheelFriction, ref float wextremumSlip)
@@ -67,209 +141,243 @@ public class CarMovement : MonoBehaviour
 
     private void Turn(float horizantaleInput)
     {
-        if (horizantaleInput != 0)
-        {
-            float sign = Math.Sign(horizantaleInput);
+        float sign = Math.Sign(horizantaleInput);
 
-            steeringAxis = steeringAxis + sign * (Time.deltaTime * 10f * carMovementData.SteeringSpeed);
+        SteeringAxis = SteeringAxis + sign * (Time.deltaTime * 10f * carData.SteeringSpeed);
 
-            if (steeringAxis < -1f)
-            {
-                steeringAxis = -1f;
-            }
-            if (steeringAxis > 1f)
-            {
-                steeringAxis = 1f;
-            }
+        Debug.Log("SteeringAxis " + SteeringAxis);
 
-            var steeringAngle = steeringAxis * carMovementData.MaxSteeringAngle;
-            frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, steeringAngle, carMovementData.SteeringSpeed);
-            frontRightCollider.steerAngle = Mathf.Lerp(frontRightCollider.steerAngle, steeringAngle, carMovementData.SteeringSpeed);
-        }
+        float steeringAngle = SteeringAxis * carData.MaxSteeringAngle;
+        frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, steeringAngle, carData.SteeringSpeed);
+        frontRightCollider.steerAngle = Mathf.Lerp(frontRightCollider.steerAngle, steeringAngle, carData.SteeringSpeed);
     }
 
-    //The following method takes the front car wheels to their default position (rotation = 0). The speed of this movement will depend
-    // on the steeringSpeed variable.
-    public void ResetSteeringAngle()
+    private void ResetSteeringAngle()
     {
-        if (steeringAxis < 0f)
+        if (SteeringAxis < 0f)
         {
-            steeringAxis = steeringAxis + (Time.deltaTime * 10f * carMovementData.SteeringSpeed);
+            SteeringAxis = SteeringAxis + (Time.deltaTime * 10f * carData.SteeringSpeed);
         }
-        else if (steeringAxis > 0f)
+        else if (SteeringAxis > 0f)
         {
-            steeringAxis = steeringAxis - (Time.deltaTime * 10f * carMovementData.SteeringSpeed);
+            SteeringAxis = SteeringAxis - (Time.deltaTime * 10f * carData.SteeringSpeed);
         }
         if (Mathf.Abs(frontLeftCollider.steerAngle) < 1f)
         {
-            steeringAxis = 0f;
+            SteeringAxis = 0f;
         }
-        var steeringAngle = steeringAxis * carMovementData.MaxSteeringAngle;
-        frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, steeringAngle, carMovementData.SteeringSpeed);
-        frontRightCollider.steerAngle = Mathf.Lerp(frontRightCollider.steerAngle, steeringAngle, carMovementData.SteeringSpeed);
+        var steeringAngle = SteeringAxis * carData.MaxSteeringAngle;
+        frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, steeringAngle, carData.SteeringSpeed);
+        frontRightCollider.steerAngle = Mathf.Lerp(frontRightCollider.steerAngle, steeringAngle, carData.SteeringSpeed);
     }
 
-    private void Move()
+    private void Move(float verticleInput)
     {
-        //If the forces aplied to the rigidbody in the 'x' asis are greater than
-        //3f, it means that the car is losing traction, then the car will start emitting particle systems.
-        //if (Mathf.Abs(localVelocityX) > 2.5f)
-        //{
-        //    isDrifting = true;
-        //    DriftCarPS();
-        //}
-        //else
-        //{
-        //    isDrifting = false;
-        //    DriftCarPS();
-        //}
-
-        // The following part sets the throttle power to 1 smoothly.
-        throttleAxis = throttleAxis + (Time.deltaTime * 3f);
-        if (throttleAxis > 1f)
+        if (Mathf.Abs(LocalVelocity.x) > 2.5f)
         {
-            throttleAxis = 1f;
-        }
-        //If the car is going backwards, then apply brakes in order to avoid strange
-        //behaviours. If the local velocity in the 'z' axis is less than -1f, then it
-        //is safe to apply positive torque to go forward.
-        if (localVelocityZ < -1f)
-        {
-            //Brakes();
+            IsDrifting = true;
+            carEffects.DriftCarPS();
         }
         else
         {
-            if (Mathf.RoundToInt(carSpeed) < carMovementData.MaxSpeed)
+            IsDrifting = false;
+            carEffects.DriftCarPS();
+        }
+
+        float sign = Math.Sign(verticleInput);
+        float limitedSpeed = sign > 0 ? carData.MaxSpeed : carData.MaxReverseSpeed;
+
+        ThrottleAxis = ThrottleAxis + sign*(Time.deltaTime * 3f);
+        if (ThrottleAxis > 1f)
+        {
+            ThrottleAxis = 1f;
+        }
+        if (ThrottleAxis < -1f)
+        {
+            ThrottleAxis = -1f;
+        }
+
+        if ((sign > 0 && LocalVelocity.z < -1f) || (sign < 0 && LocalVelocity.z > 1f))
+        {
+            Brakes();
+        }
+        else
+        {
+            if (Mathf.RoundToInt(CarSpeed) < limitedSpeed)
             {
-                //Apply positive torque in all wheels to go forward if maxSpeed has not been reached.
-                frontLeftCollider.brakeTorque = 0;
-                frontLeftCollider.motorTorque = (carMovementData.Acceleration * 50f) * throttleAxis;
-                frontRightCollider.brakeTorque = 0;
-                frontRightCollider.motorTorque = (carMovementData.Acceleration * 50f) * throttleAxis;
-                rearLeftCollider.brakeTorque = 0;
-                rearLeftCollider.motorTorque = (carMovementData.Acceleration * 50f) * throttleAxis;
-                rearRightCollider.brakeTorque = 0;
-                rearRightCollider.motorTorque = (carMovementData.Acceleration * 50f) * throttleAxis;
+                Acceleration();
             }
             else
             {
-                // If the maxSpeed has been reached, then stop applying torque to the wheels.
-                // IMPORTANT: The maxSpeed variable should be considered as an approximation; the speed of the car
-                // could be a bit higher than expected.
-                frontLeftCollider.motorTorque = 0;
-                frontRightCollider.motorTorque = 0;
-                rearLeftCollider.motorTorque = 0;
-                rearRightCollider.motorTorque = 0;
+                ThrottleOff();
             }
         }
     }
 
-    //public void GoForward()
-    //{
-    //    //If the forces aplied to the rigidbody in the 'x' asis are greater than
-    //    //3f, it means that the car is losing traction, then the car will start emitting particle systems.
-    //    if (Mathf.Abs(localVelocityX) > 2.5f)
-    //    {
-    //        isDrifting = true;
-    //        DriftCarPS();
-    //    }
-    //    else
-    //    {
-    //        isDrifting = false;
-    //        DriftCarPS();
-    //    }
-    //    // The following part sets the throttle power to 1 smoothly.
-    //    throttleAxis = throttleAxis + (Time.deltaTime * 3f);
-    //    if (throttleAxis > 1f)
-    //    {
-    //        throttleAxis = 1f;
-    //    }
-    //    //If the car is going backwards, then apply brakes in order to avoid strange
-    //    //behaviours. If the local velocity in the 'z' axis is less than -1f, then it
-    //    //is safe to apply positive torque to go forward.
-    //    if (localVelocityZ < -1f)
-    //    {
-    //        Brakes();
-    //    }
-    //    else
-    //    {
-    //        if (Mathf.RoundToInt(carSpeed) < maxSpeed)
-    //        {
-    //            //Apply positive torque in all wheels to go forward if maxSpeed has not been reached.
-    //            frontLeftCollider.brakeTorque = 0;
-    //            frontLeftCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            frontRightCollider.brakeTorque = 0;
-    //            frontRightCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            rearLeftCollider.brakeTorque = 0;
-    //            rearLeftCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            rearRightCollider.brakeTorque = 0;
-    //            rearRightCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //        }
-    //        else
-    //        {
-    //            // If the maxSpeed has been reached, then stop applying torque to the wheels.
-    //            // IMPORTANT: The maxSpeed variable should be considered as an approximation; the speed of the car
-    //            // could be a bit higher than expected.
-    //            frontLeftCollider.motorTorque = 0;
-    //            frontRightCollider.motorTorque = 0;
-    //            rearLeftCollider.motorTorque = 0;
-    //            rearRightCollider.motorTorque = 0;
-    //        }
-    //    }
-    //}
+    private void Acceleration()
+    {
+        float force = carData.Acceleration * carData.Mass;
+        float motorTorque = frontLeftCollider.radius * force;
+        motorTorque /= 4f;
 
-    //// This method apply negative torque to the wheels in order to go backwards.
-    //public void GoReverse()
-    //{
-    //    //If the forces aplied to the rigidbody in the 'x' asis are greater than
-    //    //3f, it means that the car is losing traction, then the car will start emitting particle systems.
-    //    if (Mathf.Abs(localVelocityX) > 2.5f)
-    //    {
-    //        isDrifting = true;
-    //        DriftCarPS();
-    //    }
-    //    else
-    //    {
-    //        isDrifting = false;
-    //        DriftCarPS();
-    //    }
-    //    // The following part sets the throttle power to -1 smoothly.
-    //    throttleAxis = throttleAxis - (Time.deltaTime * 3f);
-    //    if (throttleAxis < -1f)
-    //    {
-    //        throttleAxis = -1f;
-    //    }
-    //    //If the car is still going forward, then apply brakes in order to avoid strange
-    //    //behaviours. If the local velocity in the 'z' axis is greater than 1f, then it
-    //    //is safe to apply negative torque to go reverse.
-    //    if (localVelocityZ > 1f)
-    //    {
-    //        Brakes();
-    //    }
-    //    else
-    //    {
-    //        if (Mathf.Abs(Mathf.RoundToInt(carSpeed)) < maxReverseSpeed)
-    //        {
-    //            //Apply negative torque in all wheels to go in reverse if maxReverseSpeed has not been reached.
-    //            frontLeftCollider.brakeTorque = 0;
-    //            frontLeftCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            frontRightCollider.brakeTorque = 0;
-    //            frontRightCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            rearLeftCollider.brakeTorque = 0;
-    //            rearLeftCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //            rearRightCollider.brakeTorque = 0;
-    //            rearRightCollider.motorTorque = (accelerationMultiplier * 50f) * throttleAxis;
-    //        }
-    //        else
-    //        {
-    //            //If the maxReverseSpeed has been reached, then stop applying torque to the wheels.
-    //            // IMPORTANT: The maxReverseSpeed variable should be considered as an approximation; the speed of the car
-    //            // could be a bit higher than expected.
-    //            frontLeftCollider.motorTorque = 0;
-    //            frontRightCollider.motorTorque = 0;
-    //            rearLeftCollider.motorTorque = 0;
-    //            rearRightCollider.motorTorque = 0;
-    //        }
-    //    }
-    //}
+        Action<WheelCollider> addMotorTorque = (wheelCollider) => {
+            wheelCollider.brakeTorque = 0;
+            wheelCollider.motorTorque = (motorTorque) * ThrottleAxis;
+        };
+
+        addMotorTorque(frontLeftCollider);
+        addMotorTorque(frontRightCollider);
+        addMotorTorque(rearLeftCollider);
+        addMotorTorque(rearRightCollider);
+    }
+
+    private void ThrottleOff()
+    {
+        frontLeftCollider.motorTorque = 0;
+        frontRightCollider.motorTorque = 0;
+        rearLeftCollider.motorTorque = 0;
+        rearRightCollider.motorTorque = 0;
+    }
+
+    private void Brakes()
+    {
+        frontLeftCollider.brakeTorque = carData.BrakeForce;
+        frontRightCollider.brakeTorque = carData.BrakeForce;
+        rearLeftCollider.brakeTorque = carData.BrakeForce;
+        rearRightCollider.brakeTorque = carData.BrakeForce;
+    }
+
+    private void Handbrake()
+    {
+        CancelInvoke("RecoverTraction");
+        driftingAxis = driftingAxis + (Time.deltaTime);
+        float secureStartingPoint = driftingAxis * flWextremumSlip * carData.HandbrakeDriftMultiplier;
+
+        if (secureStartingPoint < flWextremumSlip)
+        {
+            driftingAxis = flWextremumSlip / (flWextremumSlip * carData.HandbrakeDriftMultiplier);
+        }
+        if (driftingAxis > 1f)
+        {
+            driftingAxis = 1f;
+        }
+        if (Mathf.Abs(LocalVelocity.x) > 2.5f)
+        {
+            IsDrifting = true;
+        }
+        else
+        {
+            IsDrifting = false;
+        }
+        if (driftingAxis < 1f)
+        {
+            SetExtimumSlip(flWheelFriction, frontLeftCollider, flWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(frWheelFriction, frontRightCollider, frWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(rlWheelFriction, rearLeftCollider, rlWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(rrWheelFriction, rearRightCollider, rrWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+        }
+
+        IsTractionLocked = true;
+        carEffects.DriftCarPS();
+
+    }
+
+    private void RecoverTraction()
+    {
+        IsTractionLocked = false;
+        driftingAxis = driftingAxis - (Time.deltaTime / 1.5f);
+        if (driftingAxis < 0f)
+        {
+            driftingAxis = 0f;
+        }
+
+        if (flWheelFriction.extremumSlip > flWextremumSlip)
+        {
+            SetExtimumSlip(flWheelFriction, frontLeftCollider, flWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(frWheelFriction, frontRightCollider, frWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(rlWheelFriction, rearLeftCollider, rlWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+            SetExtimumSlip(rrWheelFriction, rearRightCollider, rrWextremumSlip * carData.HandbrakeDriftMultiplier * driftingAxis);
+
+            Invoke("RecoverTraction", Time.deltaTime);
+
+        }
+        else if (flWheelFriction.extremumSlip < flWextremumSlip)
+        {
+            SetExtimumSlip(flWheelFriction, frontLeftCollider, flWextremumSlip);
+            SetExtimumSlip(frWheelFriction, frontRightCollider, frWextremumSlip);
+            SetExtimumSlip(rlWheelFriction, rearLeftCollider, rlWextremumSlip);
+            SetExtimumSlip(rrWheelFriction, rearRightCollider, rrWextremumSlip);
+
+            driftingAxis = 0f;
+        }
+    }
+
+    private void DecelerateCar()
+    {
+        if (Mathf.Abs(LocalVelocity.x) > 2.5f)
+        {
+            IsDrifting = true;
+            carEffects.DriftCarPS();
+        }
+        else
+        {
+            IsDrifting = false;
+            carEffects.DriftCarPS();
+        }
+
+        if (ThrottleAxis != 0f)
+        {
+            if (ThrottleAxis > 0f)
+            {
+                ThrottleAxis = ThrottleAxis - (Time.deltaTime * 10f);
+            }
+            else if (ThrottleAxis < 0f)
+            {
+                ThrottleAxis = ThrottleAxis + (Time.deltaTime * 10f);
+            }
+            if (Mathf.Abs(ThrottleAxis) < 0.15f)
+            {
+                ThrottleAxis = 0f;
+            }
+        }
+        carRigidbody.velocity = carRigidbody.velocity * (1f / (1f + (0.025f * carData.DecelerationMultiplier)));
+
+        ThrottleOff();
+
+        if (carRigidbody.velocity.magnitude < 0.25f)
+        {
+            carRigidbody.velocity = Vector3.zero;
+            CancelInvoke("DecelerateCar");
+        }
+    }
+
+    private void AnimateWheelMeshes()
+    {
+        Action<GameObject, WheelCollider> rotateWheel = (meshGO, wheelCollider) =>
+        {
+            Quaternion wheelRotation;
+            Vector3 wheelPosition;
+            wheelCollider.GetWorldPose(out wheelPosition, out wheelRotation);
+            meshGO.transform.position = wheelPosition;
+            meshGO.transform.rotation = wheelRotation;
+        };
+
+        try
+        {
+            rotateWheel(frontLeftMesh, frontLeftCollider);
+            rotateWheel(frontRightMesh, frontRightCollider);
+            rotateWheel(rearLeftMesh, rearLeftCollider);
+            rotateWheel(rearRightMesh, rearRightCollider);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning(ex);
+        }
+    }
+
+    private Action<WheelFrictionCurve, WheelCollider, float> SetExtimumSlip = (wheelFrictionCurve, wheelCollider, wextremumSlip) =>
+    {
+        wheelFrictionCurve.extremumSlip = wextremumSlip;
+        wheelCollider.sidewaysFriction = wheelFrictionCurve;
+    };
 }
