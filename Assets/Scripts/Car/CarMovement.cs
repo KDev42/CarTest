@@ -76,16 +76,6 @@ public class CarMovement : MonoBehaviour
         carRigidbody = gameObject.GetComponent<Rigidbody>();
         carRigidbody.centerOfMass = bodyMassCenter;
 
-        //frontLeftCollider = frontLeftWheel.WheelCollider;
-        //frontRightCollider = frontRightWheel.WheelCollider;
-        //rearLeftCollider = backLeftWheel.WheelCollider;
-        //rearRightCollider = backRightWheel.WheelCollider;
-
-        //frontLeftMesh = frontLeftWheel.WheelMesh;
-        //frontRightMesh = frontRightWheel.WheelMesh;
-        //rearLeftMesh = backLeftWheel.WheelMesh;
-        //rearRightMesh = backRightWheel.WheelMesh;
-
         InitWheele(frontLeftWheel, out frontLeftCollider, out frontLeftMesh, out flWheelFriction, ref flWextremumSlip);
         InitWheele(frontRightWheel, out frontRightCollider, out frontRightMesh, out frWheelFriction, ref frWextremumSlip);
         InitWheele(backLeftWheel, out rearLeftCollider, out rearLeftMesh, out rlWheelFriction, ref rlWextremumSlip);
@@ -110,16 +100,16 @@ public class CarMovement : MonoBehaviour
             Turn(moveDirection.x);
         }
 
-        if (Input.GetKey(KeyCode.Space))
-        {
-            CancelInvoke("DecelerateCar");
-            deceleratingCar = false;
-            Handbrake();
-        }
-        if (Input.GetKeyUp(KeyCode.Space))
-        {
-            RecoverTraction();
-        }
+        //if (Input.GetKey(KeyCode.Space))
+        //{
+        //    CancelInvoke("DecelerateCar");
+        //    deceleratingCar = false;
+        //    Handbrake();
+        //}
+        //if (Input.GetKeyUp(KeyCode.Space))
+        //{
+        //    RecoverTraction();
+        //}
         if (moveDirection.y == 0)
         {
             ThrottleOff();
@@ -150,14 +140,6 @@ public class CarMovement : MonoBehaviour
 
         wheelFriction = wheelCollider.sidewaysFriction;
         wextremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
-
-        //wheelFriction = new WheelFrictionCurve();
-        //wheelFriction.extremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
-        //wextremumSlip = wheelCollider.sidewaysFriction.extremumSlip;
-        //wheelFriction.extremumValue = wheelCollider.sidewaysFriction.extremumValue;
-        //wheelFriction.asymptoteSlip = wheelCollider.sidewaysFriction.asymptoteSlip;
-        //wheelFriction.asymptoteValue = wheelCollider.sidewaysFriction.asymptoteValue;
-        //wheelFriction.stiffness = wheelCollider.sidewaysFriction.stiffness;
     }
 
     private void Turn(float horizantaleInput)

@@ -16,5 +16,5 @@ MonoBehaviour:
     ExtremumSlip: 1
     ExtremumValue: 4
     AsymptoteSlip: 2
-    AsymptoteValue: 2
+    AsymptoteValue: 4
     Stiffness: 1
